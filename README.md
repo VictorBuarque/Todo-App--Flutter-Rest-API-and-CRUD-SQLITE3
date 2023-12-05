@@ -1,3 +1,5 @@
+# Ainda está incompleto
+
 # Flutter TODO App com REST API e CRUD SQLite
 Este é um aplicativo de lista de tarefas (TODO) desenvolvido em Flutter, utilizando uma REST API para comunicação com um servidor e SQLite como banco de dados local para armazenamento das tarefas.
 
