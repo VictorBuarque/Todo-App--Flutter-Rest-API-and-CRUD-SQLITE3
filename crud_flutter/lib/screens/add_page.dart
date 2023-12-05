@@ -1,6 +1,12 @@
 import 'dart:convert';
+import 'package:crud_flutter/screens/tododatabase.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:camera/camera.dart';
+import 'camera_screen.dart';
+import 'package:path/path.dart' as path;
+
+import 'package:sqflite/sqflite.dart';
 
 class AddTodoPage extends StatefulWidget {
   final Map? todo;
@@ -20,13 +26,16 @@ class _AddTodoPageState extends State<AddTodoPage> {
   TextEditingController titleController = TextEditingController();
   TextEditingController descriptionController = TextEditingController();
   bool isEdit = false;
-  final void Function()? onTodoUpdated;
-
-  _AddTodoPageState({this.onTodoUpdated});
+  late CameraController _cameraController;
+  late Future<void> _initializeCameraFuture;
+  XFile? _imageFile;
+  late Database _database;
 
   @override
   void initState() {
     super.initState();
+    _initializeCamera();
+    _initDatabase();
     final todo = widget.todo;
     if (widget.todo != null) {
       isEdit = true;
@@ -72,6 +81,22 @@ class _AddTodoPageState extends State<AddTodoPage> {
               child: Text(isEdit ? 'Update' : 'Submit'),
             ),
           ),
+          ElevatedButton(
+            onPressed: () {
+              _initializeCamera().then((_) {
+                if (_cameraController != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          CameraScreen(cameraController: _cameraController),
+                    ),
+                  );
+                }
+              });
+            },
+            child: Text('Acessar Câmera'),
+          ),
         ],
       ),
     );
@@ -83,6 +108,7 @@ class _AddTodoPageState extends State<AddTodoPage> {
       print('You cannot call updated without todo data');
       return;
     }
+
     final title = titleController.text;
     final description = descriptionController.text;
     final id = todo['_id'];
@@ -91,6 +117,7 @@ class _AddTodoPageState extends State<AddTodoPage> {
       "description": description,
       "is_completed": todo['is_completed'],
     };
+
     final url = 'http://api.nstack.in/v1/todos/$id';
     final uri = Uri.parse(url);
 
@@ -104,9 +131,22 @@ class _AddTodoPageState extends State<AddTodoPage> {
       if (response.statusCode == 200) {
         titleController.text = '';
         descriptionController.text = '';
-        showSuccessMessage('Updated successfully');
-        onTodoUpdated?.call(); // Chamada do callback após a atualização
-        Navigator.pop(context,true); // Fecha a tela de edição após a atualização
+        showSuccessMessage('Dados salvos na API!');
+
+        // Se a função onTodoUpdated for passada como parâmetro, chame-a após a atualização
+        widget.onTodoUpdated?.call();
+
+        // Fecha a tela de edição após a atualização
+        Navigator.pop(context, true);
+
+        // Atualiza o banco de dados local
+        await TodoDatabase.update({
+          'id': id,
+          'title': title,
+          'description': description,
+          'isCompleted': todo['is_completed'] ? 1 : 0,
+        });
+        showSuccessMessage('Dados salvos localmente!');
       } else {
         showErrorMessage('Update Failed: ${response.statusCode}');
       }
@@ -139,6 +179,13 @@ class _AddTodoPageState extends State<AddTodoPage> {
         titleController.text = '';
         descriptionController.text = '';
         showSuccessMessage('Created successfully');
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        await TodoDatabase.insert({
+          'id': responseData['_id'],
+          'title': title,
+          'description': description,
+          'isCompleted': false,
+        });
       } else {
         showErrorMessage('Creation Failed: ${response.statusCode}');
       }
@@ -167,5 +214,46 @@ class _AddTodoPageState extends State<AddTodoPage> {
       backgroundColor: Colors.red,
     );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  Future<void> _initializeCamera() async {
+    final cameras = await availableCameras();
+    final firstCamera = cameras.first;
+
+    setState(() {
+      _cameraController =
+          CameraController(firstCamera, ResolutionPreset.medium);
+      _initializeCameraFuture = _cameraController.initialize();
+    });
+  }
+
+  Future<void> _initDatabase() async {
+    final databasesPath = await getDatabasesPath();
+    final dbPath =
+        path.join(databasesPath!, 'todos.db'); // Corrigindo o uso do join
+    _database = await openDatabase(
+      dbPath,
+      version: 1,
+      onCreate: (db, version) {
+        return db.execute(
+          'CREATE TABLE todos(id INTEGER PRIMARY KEY, title TEXT, description TEXT, image TEXT)',
+        );
+      },
+    );
+  }
+  Future<String> getDatabasePath() async {
+  // Obtém o diretório de armazenamento local do aplicativo
+  final appDocumentDir = await getDatabasesPath();
+  return appDocumentDir;
+}
+  void showDatabasePath() async {
+  final dbPath = await getDatabasePath();
+  print('O banco de dados SQLite está salvo em: $dbPath');
+}
+  @override
+  void dispose() {
+    _cameraController.dispose();
+    _database.close();
+    super.dispose();
   }
 }

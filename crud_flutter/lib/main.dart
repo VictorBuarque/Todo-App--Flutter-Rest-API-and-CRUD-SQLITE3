@@ -1,6 +1,7 @@
 import 'package:crud_flutter/screens/todo_list.dart';
 import 'package:flutter/material.dart';
 
+
 // stl: Cria um StatelessWidget básico.
 // stf: Cria um StatefulWidget básico.
 // stful: Cria um StatefulWidget com métodos predefinidos.
@@ -8,6 +9,8 @@ import 'package:flutter/material.dart';
 // col: Cria um Column widget.
 // row: Cria um Row widget.
 // cont: Cria um Container widget.
+
+
 void main(){
   runApp(const MyApp());
 }
